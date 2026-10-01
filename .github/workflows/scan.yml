@@ -2,7 +2,8 @@ name: RF HTF OB5m Scan
 
 on:
   schedule:
-    # Every 5 minutes, Mon–Fri, ~03:45–10:15 UTC (IST 09:15–15:45)
+    # Mon–Fri every 5 min UTC 03:45–10:15 ≈ IST 09:15–15:45
+    # (GitHub can delay cron; workflow stays active on default branch)
     - cron: "45,50,55 3 * * 1-5"
     - cron: "*/5 4-9 * * 1-5"
     - cron: "0,5,10,15 10 * * 1-5"
