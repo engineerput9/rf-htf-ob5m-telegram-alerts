@@ -25,7 +25,7 @@ from . import rf as rfmod
 from . import telegram_notify as tg
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SYMBOLS = ROOT / "symbols_fno.txt"
+DEFAULT_SYMBOLS = ROOT / "symbols_fno_full.txt"
 DEFAULT_STATE = ROOT / "state" / "last_signals.json"
 IST = ZoneInfo("Asia/Kolkata")
 UTC = timezone.utc

@@ -88,10 +88,10 @@ RF+HTF+OB5m | 5m | 2026-09-30 10:15 IST
 
 ## Symbol universe
 
-Default: `symbols_fno.txt` (~80 liquid NSE F&O names ending in `.NS`).
+Default: `symbols_fno_full.txt` (213 NSE F&O names ending in `.NS`). The live scanner uses this full universe by default.
 
-- **Actions time limits:** keep this subset.
-- **Expand locally / larger runners:** replace with the full ~213 Yahoo symbols from your F&O universe CSV (`yahoo` column). One symbol per line; `#` comments allowed.
+- `symbols_fno.txt` is retained as the smaller 84-name liquid subset for optional, faster local scans.
+- To use a different universe, pass `--symbols PATH`; one symbol per line, with `#` comments allowed.
 
 ---
 
@@ -122,7 +122,7 @@ Fetches Yahoo 5m, runs the same RF+HTF+OB5m entry rules, swing/ATR SL, 0.6R TP, 
 
 ```bash
 python -m backtest.run_backtest --limit 10
-python -m backtest.run_backtest              # full symbols_fno.txt
+python -m backtest.run_backtest              # default backtest universe
 ```
 
 Outputs under `output/`:
@@ -154,7 +154,8 @@ src/ob.py                        # wugamlo OB5m
 src/scanner.py                   # live scan entrypoint
 src/telegram_notify.py
 backtest/run_backtest.py
-symbols_fno.txt
+symbols_fno_full.txt          # default live-scan universe
+symbols_fno.txt               # optional liquid subset
 state/last_signals.json
 requirements.txt
 GUIDE.md                         # non-dev numbered steps

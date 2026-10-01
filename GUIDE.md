@@ -90,10 +90,11 @@ Or on GitHub: **Actions → RF HTF OB5m Backtest → Run workflow**.
 
 ---
 
-## Optional — more stocks
+## Symbol universe
 
-Edit `symbols_fno.txt` and add more lines like `SBIN.NS` (one per line).  
-More symbols = longer runs; the default list is sized for free GitHub Actions.
+The live scanner uses `symbols_fno_full.txt`, containing all 213 F&O symbols, by default.
+For a faster local scan, pass `--symbols symbols_fno.txt` to use the smaller 84-name liquid subset.
+To customize a universe, add one Yahoo symbol per line; `#` comments are allowed.
 
 ---
 
