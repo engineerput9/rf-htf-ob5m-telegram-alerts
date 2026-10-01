@@ -1,0 +1,38 @@
+name: Telegram Ping Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Send Telegram test message
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python - <<'PY'
+          from src.telegram_notify import send_message
+          ok = send_message(
+              "✅ RF+HTF+OB5m Telegram connected.\n"
+              "This is a test ping from GitHub Actions.\n"
+              "If you see this, bot token + chat id are working."
+          )
+          print("sent_ok=", ok)
+          if not ok:
+              raise SystemExit(1)
+          PY
