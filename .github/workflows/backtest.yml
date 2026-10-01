@@ -1,0 +1,42 @@
+name: RF HTF OB5m Backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Limit symbols (0 = all in symbols_fno.txt)"
+        required: false
+        default: "20"
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Run backtest
+        run: |
+          LIMIT="${{ github.event.inputs.limit }}"
+          if [ -z "$LIMIT" ]; then LIMIT=20; fi
+          if [ "$LIMIT" = "0" ]; then
+            python -m backtest.run_backtest
+          else
+            python -m backtest.run_backtest --limit "$LIMIT"
+          fi
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-output
+          path: output/

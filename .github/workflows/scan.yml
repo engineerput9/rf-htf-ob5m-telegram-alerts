@@ -1,0 +1,59 @@
+name: RF HTF OB5m Scan
+
+on:
+  schedule:
+    # Every 5 minutes, Mon–Fri, ~03:45–10:15 UTC (IST 09:15–15:45)
+    - cron: "45,50,55 3 * * 1-5"
+    - cron: "*/5 4-9 * * 1-5"
+    - cron: "0,5,10,15 10 * * 1-5"
+  workflow_dispatch:
+
+concurrency:
+  group: rf-htf-ob5m-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Restore last_signals cache
+        id: cache-signals
+        uses: actions/cache/restore@v4
+        with:
+          path: state/last_signals.json
+          key: last-signals-${{ github.run_id }}
+          restore-keys: |
+            last-signals-
+
+      - name: Ensure state file
+        run: |
+          mkdir -p state
+          if [ ! -f state/last_signals.json ]; then
+            echo '{"signals":{}}' > state/last_signals.json
+          fi
+
+      - name: Run scanner
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m src.scanner
+
+      - name: Save last_signals cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state/last_signals.json
+          key: last-signals-${{ github.run_id }}

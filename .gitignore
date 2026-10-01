@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+.DS_Store
+output/*.csv
+output/*.json
+!output/.gitkeep
+# Keep committed empty state template; runtime state is Actions-cache driven
+# state/last_signals.json is committed as {"signals":{}}
