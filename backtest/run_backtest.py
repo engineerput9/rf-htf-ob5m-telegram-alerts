@@ -34,11 +34,37 @@ from src.scanner import fetch_5m, load_symbols  # noqa: E402
 
 DEFAULT_SYMBOLS = ROOT / "symbols_fno.txt"
 OUT_DIR = ROOT / "output"
+LOCAL_DATA_DIR = Path("/workspace/yahoo_backtest/data/fno208")
 STOCK_SLIP_PCT = 0.0005
 COMMISSION_PCT = 0.0003
 FORCE_FLAT_HHMM = (15, 15)
 TP_R = rfmod.TP_R
 QTY = 1.0
+
+
+def local_path_for_symbol(symbol: str, data_dir: Path) -> Path:
+    """Map Yahoo NSE symbols to fno208 filenames (e.g. M&M.NS -> M&M_NS_5m.csv)."""
+    stem = symbol[:-3] if symbol.endswith(".NS") else symbol
+    return data_dir / f"{stem}_NS_5m.csv"
+
+
+def load_local_5m(path: Path) -> pd.DataFrame:
+    """Load an existing fno208 CSV and normalize it like the Yahoo loader."""
+    df = pd.read_csv(path, parse_dates=["datetime"])
+    required = ["datetime", "open", "high", "low", "close", "volume"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"missing columns: {missing}")
+    df = df[required].copy().set_index("datetime")
+    if df.index.tz is None:
+        df.index = df.index.tz_localize(rfmod.TZ)
+    else:
+        df.index = df.index.tz_convert(rfmod.TZ)
+    for col in ["open", "high", "low", "close", "volume"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["open", "high", "low", "close"])
+    df = df[~df.index.duplicated(keep="last")].sort_index()
+    return rfmod.filter_session(df)
 
 
 @dataclass
@@ -304,6 +330,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--out-dir", type=Path, default=OUT_DIR)
     p.add_argument("--limit", type=int, default=0)
     p.add_argument("--sleep", type=float, default=0.35, help="Pause between Yahoo fetches")
+    p.add_argument(
+        "--data-dir", type=Path,
+        default=LOCAL_DATA_DIR if LOCAL_DATA_DIR.exists() else None,
+        help="Prefer local fno208 CSVs from this directory; fall back to Yahoo when absent",
+    )
     args = p.parse_args(argv)
 
     symbols = load_symbols(args.symbols)
@@ -316,27 +347,57 @@ def main(argv: Optional[list[str]] = None) -> int:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     all_trades: list[Trade] = []
     per_sym: list[dict] = []
+    counts = {"local": 0, "yahoo": 0, "skipped": 0, "errors": 0, "with_data": 0}
 
     for i, sym in enumerate(symbols, 1):
         print(f"[{i}/{len(symbols)}] {sym} ...", flush=True)
         try:
-            df = fetch_5m(sym)
-            time.sleep(args.sleep)
+            local_path = (local_path_for_symbol(sym, args.data_dir)
+                          if args.data_dir is not None else None)
+            if local_path is not None and local_path.exists():
+                df = load_local_5m(local_path)
+                source = "local"
+                counts["local"] += 1
+            else:
+                df = fetch_5m(sym)
+                time.sleep(args.sleep)
+                source = "yahoo"
+                counts["yahoo"] += 1
             if df is None or df.empty:
-                print(f"  no data")
-                per_sym.append({"symbol": sym, "n_trades": 0, "error": "no_data"})
+                print(f"  no data ({source})")
+                counts["skipped"] += 1
+                per_sym.append({"symbol": sym, "n_trades": 0, "status": "skipped_no_data", "data_source": source})
                 continue
+            if len(df) < rfmod.RF_PERIOD + 50:
+                print(f"  skipped: only {len(df)} bars ({source})")
+                counts["skipped"] += 1
+                per_sym.append({"symbol": sym, "n_trades": 0, "status": "skipped_too_short", "bars": len(df), "data_source": source})
+                continue
+            counts["with_data"] += 1
             tr = run_symbol_backtest(sym, df)
             all_trades.extend(tr)
             s = summarize(tr)
             s["symbol"] = sym
+            s["status"] = "ok"
+            s["bars"] = len(df)
+            s["data_source"] = source
             per_sym.append(s)
-            print(f"  trades={s['n_trades']} WR={s['win_rate']:.1%} ExpR={s['expectancy_r']} net={s['net_pnl']}")
+            print(f"  trades={s['n_trades']} WR={s['win_rate']:.1%} ExpR={s['expectancy_r']} net={s['net_pnl']} ({source})")
         except Exception as e:
             print(f"  error: {e}")
-            per_sym.append({"symbol": sym, "n_trades": 0, "error": str(e)})
+            counts["errors"] += 1
+            counts["skipped"] += 1
+            per_sym.append({"symbol": sym, "n_trades": 0, "status": "error", "error": str(e)})
 
     agg = summarize(all_trades)
+    agg.update({
+        "symbols_scanned": len(symbols),
+        "symbols_with_data": counts["with_data"],
+        "symbols_skipped": counts["skipped"],
+        "symbols_errors": counts["errors"],
+        "symbols_local": counts["local"],
+        "symbols_yahoo": counts["yahoo"],
+    })
     trades_path = args.out_dir / "rf_htf_ob5m_trades.csv"
     summary_path = args.out_dir / "rf_htf_ob5m_summary.json"
     per_path = args.out_dir / "rf_htf_ob5m_per_symbol.csv"
